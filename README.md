@@ -1,7 +1,12 @@
-# cylf research and development
+# Cylf research and development docs
 
 This repo is intended to contain documentation around the design and
 specification of the cylf ecosystem.
+
+It's expected that most things in this repo will move to a new long-term home
+as the ecosystem matures and the necessary repository structures become more
+apparent. Do not plan on docuements in this repo being a persistent resource in
+this location.
 
 ## What is cylf?
 
