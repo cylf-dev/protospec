@@ -16,3 +16,7 @@
 * [TACOspec](https://tacofoundation.github.io/)
   * [Slide deck 1](https://docs.google.com/presentation/d/1EXPhwRCNz1V70BCSJ0cVAk6WF27_lOLdUoQp2CObG4E)
   * [Slide deck 2](https://docs.google.com/presentation/d/1Oqo3Eo6qI2z6YMlno4TBzi5GL3mBnILSEyrUXEF4VMw)
+* [F3: Future-proof File Format, a new columnar format](https://db.cs.cmu.edu/papers/2025/zeng-sigmod2025.pdf)
+  * [From pandas to Arrow: Wes McKinney on the Future of Data Infrastructure](https://techontherocks.show/23)
+  * [repo](https://github.com/future-file-format/F3)
+  * [Self-Extracting F3](https://buttondown.com/jaffray/archive/self-extracting-f3/)
