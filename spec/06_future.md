@@ -4,18 +4,42 @@ This document consolidates unresolved design questions and planned work across
 the Cylf ecosystem. Items are grouped by area. Items marked ✅ have been
 resolved and are retained for context.
 
----
-
 ## Codec Signature Model
 
-### Codec ID versioning
+### Codec ID versioning and URIs
 
 Codec identifiers are currently unversioned slugs (`zstd`, `shuffle`,
 `tiff-predictor-2`). A versioned identifier scheme is needed to support
 iterating on codec specifications without breaking existing pipelines. Open
 questions include the format (e.g. `zstd@1.0.0`, a URI scheme, or something
 else), what constitutes a breaking vs non-breaking change, and how version
-resolution works when a pipeline references an unversioned identifier.
+resolution works when a pipeline references an unversioned identifier. More
+broadly, should codec IDs be URIs? If so, should they be expected to be
+dereferenceable (i.e. fetchable to retrieve the codec specification), or are
+opaque URI identifiers sufficient?
+
+### Codec ID namespaces
+
+Current codec IDs are flat slugs with no namespace structure. Should codec IDs
+support namespacing (e.g. `zarr/shuffle`, `tiff/predictor-2`,
+`org.example/custom-codec`) to avoid collisions between independently-developed
+codecs and to group related codecs by origin or domain? If so, what is the
+namespace syntax, who governs namespace allocation, and how do namespaces
+interact with the URI and versioning schemes above?
+
+### Codec specification vs implementation metadata
+
+A signature describes a codec's *specification* — its interface contract — not a
+particular implementation. Multiple implementations (e.g. `zstd-c`, `zstd-rust`)
+may implement the same spec and therefore share the same signature. Currently
+Chonkle requires signatures to include an implementation field, but this
+conflates the spec with its implementation. Implementation metadata (language,
+library, version, performance characteristics) likely belongs in a separate
+object rather than in the signature itself. A deeper question is whether
+implementations should advertise their own signature at all, or whether the
+signature should be authoritative from the spec side — with implementations
+simply declaring which codec spec they implement. For non-canonical or custom
+codecs without a published spec, how does a consumer discover the signature?
 
 ### JSON Schema adoption
 
@@ -39,8 +63,6 @@ Blosc is classified as atomic (self-describing) because its header is embedded
 in the chunk. The criterion for when a codec is self-describing vs
 externally-parameterized should be formalized — currently it is described by
 example rather than by rule.
-
----
 
 ## Pipeline Model
 
@@ -67,8 +89,6 @@ pipeline. The engine would need to detect when a `codec_id` resolves to a
 pipeline definition rather than a leaf codec, and recurse into execution. This
 is not yet implemented. Whether it is needed in practice — vs handling
 composition at the plan level — is an open question.
-
----
 
 ## Codec Inventory
 
@@ -117,8 +137,6 @@ should be verified.
 - ZFP / SZ lossy compressors — added as `zfp`, `sz2`, `sz3`
 - Zarr v3 sharding — excluded (storage/access layer concern)
 
----
-
 ## Runtime
 
 ### Reference runtime
@@ -145,8 +163,6 @@ Wasm registries, pipeline `sources` hints — needs to be specified. The
 proof-of-concept implementation has a working precedence chain that can inform
 the spec, but the spec-level resolution order may differ.
 
----
-
 ## Distribution
 
 ### Signature verification scheme
@@ -169,8 +185,6 @@ Migration of Component Model codecs to the Bytecode Alliance's warg registry
 is deferred until tooling matures. Core Wasm codecs are ineligible for warg
 regardless and need a separate distribution channel.
 
----
-
 ## Specification Format
 
 ### WIT interface evolution
@@ -189,8 +203,6 @@ format. It needs to be migrated to the new bidirectional format with explicit
 codecs (duplicate the single signature into both blocks) but requires careful
 review for asymmetric codecs (`plain-dictionary`, `parquet-page-v2-split`,
 `arrow-ipc-buffer`, `orc-string-direct`, `orc-string-dictionary`).
-
----
 
 ## Forward-Looking
 

@@ -11,11 +11,9 @@ carries its own signature. The pipeline engine discovers a codec's signature
 when it loads the module and validates it against the pipeline's requirements
 before execution begins.
 
-Signatures are also the basis for the [Codec Inventory](03_inventory.md),
-which catalogs known codecs with their signatures, format aliases, and
-composition properties.
-
----
+Signatures are leveraged in the [Codec Inventory](03_inventory.md), which
+catalogs known codecs with their signatures, format aliases, and composition
+properties.
 
 ## Type Vocabulary
 
@@ -37,12 +35,14 @@ types are used for parameters: codec configuration values like compression
 level, element size, data type, and shape. In the port-map wire format,
 non-bytes values are serialized as UTF-8 JSON strings.
 
----
-
 ## Signature Structure
 
 A signature has two top-level blocks, `encode` and `decode`, each declaring
-the inputs and outputs for that direction.
+the input and output port mappings for that direction. A **port** is a named,
+typed channel on a codec's interface. Ports typed `bytes` predominantly carry
+the data being transformed, while ports with scalar types (`int`, `string`,
+`bool`, `uint[]`, `dtype_desc`) are used for parameters to configure codec
+behavior.
 
 ```json
 {
@@ -100,7 +100,8 @@ each value describes the port:
 - `required` (bool, optional, default `true`): whether the caller must supply
   this input. A `default` value implies `required: false`.
 - `default` (optional): the default value when the input is not supplied.
-  Specifying a `default` implicitly sets `required` to `false`.
+  Specifying a `default` implicitly sets `required` to `false`; validation
+  should fail if a default is set when `required` is `true`.
 
 ### `outputs` (object, required)
 
@@ -109,20 +110,18 @@ each value describes the port:
 
 - `type` (string, required): one of the types in the vocabulary above.
 
----
-
 ## Direction-Specific Parameters
 
 Because each direction has its own `inputs` block, parameters that are only
 relevant in one direction simply appear in that direction's inputs and not the
-other's. No `encode_only` or `decode_only` flags are needed — the structure
-makes direction specificity explicit.
+other's. The structure makes direction specificity explicit, no directional
+annotations on parameters required.
 
-In the zstd example above, `level` appears only in `encode.inputs` — it
+In the "zstd" example above, `level` appears only in `encode.inputs` — it
 configures compression and has no meaning during decompression. `dictionary`
-appears in both directions because zstd can use a dictionary for both encoding
-and decoding. A checksum codec like `crc32c` might have `throw_error` only in
-`decode.inputs`:
+appears in both directions because zstd can optionally use an external
+dictionary for both encoding and decoding. A checksum codec like `crc32c` might
+have `throw_error` only in `decode.inputs`:
 
 ```json
 {
@@ -147,24 +146,41 @@ and decoding. A checksum codec like `crc32c` might have `throw_error` only in
 }
 ```
 
-The distinction between data ports and parameter ports is also structural: a
-port that appears in `inputs` but not in `outputs` for a given direction is a
-parameter. Parameters configure the operation but data does not flow through
-them. `level` is in `encode.inputs` but not in `encode.outputs`; it's a
-parameter. `bytes` is in both `encode.inputs` and `encode.outputs`; it's data.
-
----
-
 ## Awareness Taxonomy
 
 Codecs are classified by **awareness** — the minimum knowledge a codec needs
-about the data beyond raw bytes. Awareness determines what parameters a pipeline
-must supply for a codec to execute correctly.
+about the structure and semantics of the data it transforms. Awareness
+determines what data-descriptive information a format driver must extract from
+format metadata and supply to the codec. A codec at any awareness level may
+still accept additional parameters for algorithm configuration or side inputs
+(e.g.  compression level, dictionary).
+
+The idea of awareness is perhaps better understood by means of comparison.
+Consider Zarr v3's codec classification, which distinguishes `ArrayArrayCodec`,
+`ArrayBytesCodec`, and `BytesBytesCodec` based on whether the codec's interface
+accepts or produces typed arrays versus byte streams. In the Cylf model, data
+being transformed is always bytes, no distinct "array" type exists at the data
+port level. What Zarr captures as a type-level distinction (array vs bytes) is
+instead captured here as a degree of awareness: a codec that Zarr would
+classify as an `ArrayArrayCodec` (e.g. `transpose`) is one that needs
+structural knowledge about the byte stream—its shape, dtype, and element
+layout—supplied via data-descriptive parameter ports. The data itself is still
+bytes in and bytes out.
+
+Awareness decouples codecs from any specific data model. Zarr's classification
+assumes codecs operate on arrays, and the codec types themselves enforce that
+assumption. By treating data uniformly as bytes and expressing structural
+knowledge through parameter ports, the Cylf model is not limited to array data.
+The same codec definitions and pipeline machinery can serve arrays, rasters,
+point clouds, tabular formats, or any other structure: format drivers simply
+need to supply whatever data-descriptive parameters a codec's awareness level
+requires.
 
 ### Pure-bytes
 
 The codec treats input as opaque bytes. No knowledge of element boundaries, data
-types, or dimensional structure is needed. Only the `bytes` port is required.
+types, or dimensional structure is needed — no data-descriptive parameter ports
+are required.
 
 Examples: `zstd`, `lz4`, `deflate`, `gzip`, `blosc`, `snappy`, `brotli`,
 `jpeg`, `jpeg2000`, `webp`
@@ -198,14 +214,14 @@ Examples: `transpose`, `tiff-predictor-2`, `tiff-predictor-3`, `png-filter`,
 
 ### Implications for pipeline construction
 
-The awareness classification tells a format driver what information it must
+The awareness classification, which is implicitly encoded into a codec's
+signature, tells a format driver what data-descriptive information it must
 extract from format metadata and wire into the pipeline. A pipeline using only
-pure-bytes codecs needs no parameters beyond the data itself. A pipeline with a
-structure-aware codec like `tiff-predictor-2` requires the format driver to
-supply `element_size` and `row_width` — values derived from the TIFF IFD's
-`BitsPerSample` and `ImageWidth` tags.
-
----
+pure-bytes codecs needs no data-descriptive parameters — the format driver only
+needs to supply the byte stream itself. A pipeline with a structure-aware codec
+like `tiff-predictor-2` requires the format driver to supply `element_size` and
+`row_width` — values derived from the TIFF IFD's `BitsPerSample` and
+`ImageWidth` tags.
 
 ## Codec Identification
 
@@ -216,8 +232,6 @@ inventory.
 A versioned URI scheme is planned to support iteration on codec specifications
 without breaking existing pipelines. The exact format is an open question — see
 [Open Questions](../06_future.md).
-
----
 
 ## Design Notes
 
@@ -231,19 +245,37 @@ given invocation are emitted as zero-length byte buffers. This avoids the need
 for variable-arity output mechanics in the signature model and keeps downstream
 pipeline wiring static and predictable.
 
----
-
 ## Open Questions
 
-- **Codec ID versioning.** Codec identifiers are currently unversioned slugs. A
-  versioned URI scheme (e.g. `zstd@1.0.0`) would support iterating on codec
-  specifications without breaking existing pipelines. The format and semantics of
-  version identifiers are not yet defined.
+- **Codec ID versioning and URIs.** Codec identifiers are currently unversioned
+  slugs. A versioned URI scheme (e.g. `zstd@1.0.0`) would support iterating on
+  codec specifications without breaking existing pipelines. The format and
+  semantics of version identifiers are not yet defined. More broadly, should
+  codec IDs be URIs? If so, should they be expected to be dereferenceable (i.e.
+  fetchable to retrieve the codec specification), or are opaque URI identifiers
+  sufficient?
+- **Codec ID namespaces.** Current codec IDs are flat slugs with no namespace
+  structure. Should codec IDs support namespacing (e.g. `zarr/shuffle`,
+  `tiff/predictor-2`, `org.example/custom-codec`) to avoid collisions between
+  independently-developed codecs and to group related codecs by origin or
+  domain? If so, what is the namespace syntax, who governs namespace
+  allocation, and how do namespaces interact with the URI and versioning
+  schemes above?
+- **Codec specification vs implementation metadata.** A signature describes a
+  codec's *specification*, its interface contract, not a particular
+  implementation. Multiple implementations (e.g. `zstd-c`, `zstd-rust`) may
+  implement the same spec and therefore share the same signature. Currently
+  Chonkle requires signatures to include an implementation field, but this
+  conflates the spec with its implementation. Implementation metadata (language,
+  library, version, performance characteristics) likely belongs in a separate
+  object rather than in the signature itself. A deeper question is whether
+  implementations should advertise their own signature at all, or whether the
+  signature should be authoritative from the spec side, with implementations
+  simply declaring which codec spec they implement. For non-canonical or custom
+  codecs without a published spec, how does a consumer discover the signature?
 - **JSON Schema adoption.** The signature format could be formalized using
   JSON Schema rather than a bespoke schema description, which would enable
   standard validation tooling and editor support.
-
----
 
 ## Further Reading
 
