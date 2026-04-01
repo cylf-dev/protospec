@@ -61,9 +61,9 @@ compressed, with the page itself split into separate level and value streams
 that each take different codec paths.
 
 These are not always simple linear chains. Parquet's page decoding involves
-fan-out (one byte stream splitting into three), per-stream codec application,
-and dictionary lookups that merge data from separate pages. Expressing this
-naturally requires a DAG, not a stack.
+fan-out (one byte stream splitting into three) and per-stream codec
+application, including the need to support complex operations like shared
+dictionary lookups. Expressing this naturally requires a DAG, not a stack.
 
 Cylf's pipeline model supports arbitrary DAG composition: fan-out, fan-in, named
 port routing, and explicit encode and decode pipelines. This means format drivers
@@ -75,7 +75,10 @@ rather than implementing custom orchestration code per format.
 New codecs and encoding strategies appear regularly. JPEG XL, LERC, ZFP, SZ3,
 FSST are all examples of relatively recent additions to the ecosystem, each
 currently tied to specific format libraries. When a data producer adopts a new
-codec, every consumer needs a library update before it can read the data.
+codec, every consumer needs a library update before it can read the data. The
+lead time on data producers adopting a new codec is measured in years,
+sometimes even decades, because they cannot use a new codec until they have
+certainty their users can support it.
 
 Cylf addresses this through its WASM runtime. Codecs compiled to WebAssembly
 are portable (one binary, any platform), sandboxed (a codec cannot access host
