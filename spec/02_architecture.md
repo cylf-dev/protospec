@@ -10,8 +10,6 @@ how they relate, and where the boundaries lie. For detailed specifications, see
 the linked reference documents. For the reasoning behind key design choices, see
 the [Design Decisions](05_design/README.md) documents.
 
----
-
 ## The Problem Cylf Addresses
 
 Every chunked data format re-implements the same codec algorithms independently,
@@ -24,8 +22,6 @@ shared layer. When a codec is improved, added, or fixed in Cylf, every format
 that uses it benefits without per-format integration work.
 
 See [Motivation](01_motivation.md) for a more detailed framing.
-
----
 
 ## Ecosystem Diagram
 
@@ -90,8 +86,6 @@ driver is the boundary between format-specific knowledge and the format-agnostic
 codec layer. Cylf does not define format drivers; they are the responsibility
 of format libraries. Cylf does define the interface they target: codec signatures
 and the pipeline schema.
-
----
 
 ## Components
 
@@ -188,8 +182,6 @@ no dependency chasing, no platform-specific builds.
 - Design rationale: [Why WASM](05_design/01_pipeline_arch.md),
   [Why Component Model](05_design/01_pipeline_arch.md)
 
----
-
 ## Boundaries
 
 ### What Cylf is
@@ -226,8 +218,6 @@ The long-term possibility of Cylf-based format drivers that handle data
 orchestration (reading, decoding, and assembling chunks into composite output
 structures, or the inverse for writing) is explored in [RFC: Format Drivers and
 Data Orchestration](07_proposals/01_orchestration.md).
-
----
 
 ## Further Reading
 
