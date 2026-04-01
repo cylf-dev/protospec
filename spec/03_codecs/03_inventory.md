@@ -7,8 +7,6 @@ into pipelines; a pipeline is itself a codec.
 Entries flagged ⚠️ have lower confidence and should be verified against primary
 sources before finalizing.
 
----
-
 ## Catalog Fields
 
 Each codec entry includes:
@@ -27,8 +25,6 @@ Each codec entry includes:
 - **implementations**: Known implementations
 - **licensing**: Any restrictions
 - **notes**: Caveats, open questions
-
----
 
 ## Pure-Bytes Codecs
 
@@ -60,8 +56,6 @@ types, or dimensional structure.
 - [`crc32`](definitions/crc32.md)
 - [`orc-boolean-rle`](definitions/orc-boolean-rle.md)
 
----
-
 ## Stride-Aware Codecs
 
 Codec needs to know element width (byte stride or bit width) to operate on
@@ -72,8 +66,6 @@ element boundaries, but does not need to know the semantic type.
 - [`byte-stream-split`](definitions/byte-stream-split.md)
 - [`rle-parquet`](definitions/rle-parquet.md)
 - [`rle`](definitions/rle.md)
-
----
 
 ## Type-Aware Codecs
 
@@ -110,8 +102,6 @@ physical type) to correctly encode or decode values.
 - [`sz2`](definitions/sz2.md) ⚠️
 - [`sz3`](definitions/sz3.md) ⚠️
 
----
-
 ## Structure-Aware Codecs
 
 Codec needs format-specific structural knowledge — dimensional layout, page
@@ -130,8 +120,6 @@ structure, image geometry, or format-specific metadata beyond simple type info.
 - [`grib-grid-packing`](definitions/grib-grid-packing.md) ⚠️
 - [`grib-ccsds`](definitions/grib-ccsds.md) ⚠️
 - [`grib-jpeg2000`](definitions/grib-jpeg2000.md) ⚠️
-
----
 
 ## Explicitly Excluded
 
