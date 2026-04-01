@@ -43,12 +43,14 @@ how they execute (a pipeline engine with a standard library of native codecs and
 a WASM runtime for extensibility).
 
 A format library that uses Cylf does not need to implement zstd, or shuffle, or
-any other codec. It reads its own metadata, constructs a pipeline definition
-that describes the decoding steps for a given chunk, and hands it to the Cylf
-pipeline engine. The engine resolves the codecs, validates the pipeline against
-codec signatures, and executes it. The format library focuses on what only it
-knows—its own metadata structures, chunk layout, and access patterns—and
-delegates the codec work to shared infrastructure.
+any other standard codec. It reads its own metadata, constructs a pipeline
+definition that describes the decoding steps for a given chunk, and hands it to
+the Cylf pipeline engine. The engine resolves the codecs, validates the
+pipeline against codec signatures, and executes it. The format library focuses
+on what only it knows—its own metadata structures, chunk layout, and access
+patterns—and delegates the codec work to shared infrastructure. Formats that
+require custom or non-standard codecs can implement and distribute them as
+WASM modules, making them immediately available to users.
 
 ## Composition, Not Just Compression
 
@@ -131,3 +133,10 @@ the pipeline schema, but it does not prescribe how format drivers are built or
 how they interact with storage. The [Architecture](02_architecture.md) document
 describes the boundaries in detail.
 
+## Origin of the Name Cylf
+
+Cylf is a stylized and search-optimized spelling of the word "sylph". Sylph is
+both the genus of several South American hummingbird species and a word meaning
+"air spirit". The inspiration for the name comes from the use of a hummingbird
+in the logo of the related project [CCRP](https://ccrp.dev), the needs of which
+also inspired the technical direction of this project.
