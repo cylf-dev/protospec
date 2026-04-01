@@ -66,6 +66,18 @@ example rather than by rule.
 
 ## Pipeline Model
 
+### Constants vs inline values
+
+The pipeline `constants` block provides named, typed values referenced from step
+inputs. An alternative is to allow step inputs to accept inline value
+descriptors (e.g. `{"type": "int", "value": 2}`) directly, eliminating the
+`constants` block. Constants make value reuse explicit and keep all input values
+as uniform string references; inline values remove a layer of indirection but
+lose the reuse semantics and require a type check to distinguish references from
+inline descriptors. Whether constants should be retained, replaced by inline
+values, or both forms supported is not yet decided. See
+[Pipeline Model § Constants vs inline values](03_codecs/02_pipeline.md#constants-vs-inline-values).
+
 ### Conditional pipeline steps
 
 Some codecs require conditional logic within a pipeline. ORC's varint encoding
