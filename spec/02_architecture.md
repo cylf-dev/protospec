@@ -31,7 +31,7 @@ See [Motivation](01_motivation.md) for a more detailed framing.
 
 ```plain
   ┌──────────────────────────────────────────────────────────┐
-  │                   Format Drivers                         │
+  │                     Format Drivers                       │
   │                                                          │
   │   ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐  │
   │   │  Zarr    │  │  TIFF/   │  │ Parquet  │  │  HDF5   │  │
@@ -46,21 +46,21 @@ See [Motivation](01_motivation.md) for a more detailed framing.
            │             │             │            │
            ▼             ▼             ▼            ▼
   ┌──────────────────────────────────────────────────────────┐
-  │                  Cylf Codec Layer                        │
+  │                    Cylf Codec Layer                      │
   │                                                          │
   │  ┌────────────────────────────────────────────────────┐  │
-  │  │              Pipeline Engine                       │  │
+  │  │                 Pipeline Engine                    │  │
   │  │                                                    │  │
   │  │  Receives pipeline definitions. Resolves each      │  │
   │  │  step to a codec implementation. Validates codec   │  │
   │  │  signatures against pipeline requirements.         │  │
   │  │  Executes the DAG. Handles fan-out, fan-in,        │  │
   │  │  dependency ordering.                              │  │
-  │  └───────────────────────┬────────────────────────────┘  │
-  │                          │                               │
-  │              resolves codecs from                        │
-  │                          │                               │
-  │            ┌─────────────┴─────────────┐                 │
+  │  └────────────────────────┬───────────────────────────┘  │
+  │                           │                              │
+  │                  resolves codecs from                    │
+  │                           │                              │
+  │            ┌──────────────┴────────────┐                 │
   │            ▼                           ▼                 │
   │  ┌──────────────────┐   ┌─────────────────────────────┐  │
   │  │ Standard Library │   │     WASM Runtime            │  │
@@ -97,8 +97,8 @@ and the pipeline schema.
 
 ### Codec Signatures
 
-Every codec — whether a native standard library implementation or a WASM
-module — carries its own **signature**: a typed description of its interface
+Every codec—whether a native standard library implementation or a WASM
+module—carries its own **signature**: a typed description of its interface
 in each direction it supports, with separate `encode` and `decode` blocks
 declaring named input and output ports. Signatures are intrinsic to the codec;
 the pipeline engine discovers them at load time and validates them against the
@@ -109,7 +109,7 @@ Each codec has a **canonical identifier** (e.g. `zstd`, `shuffle`,
 it needs about the data beyond raw bytes, from pure-bytes (opaque byte streams)
 through structure-aware (requiring dimensional or format-specific layout). The
 awareness classification determines what parameters a format driver must extract
-from format metadata and wire into the pipeline.
+from format metadata and pass into the pipeline.
 
 The [Codec Inventory](03_codecs/03_inventory.md) is a reference catalog of known
 codecs — their signatures, format aliases, awareness classifications, and
@@ -121,14 +121,16 @@ pipeline decompositions. It is a specification resource, not a runtime component
 ### Pipeline Model
 
 A **pipeline definition** is a directed acyclic graph (DAG) of codec steps
-that describes how to decode (or encode) a chunk's data.
+that describes how to encode and/or decode a chunk's data.
 
 The DAG structure supports arbitrary composition, including fan-out, fan-in,
 and named port routing, so format drivers can express multi-stream codec logic
 (e.g. Parquet page splits) naturally rather than implementing custom
-orchestration. Each direction (encode and decode) is defined independently with
-its own steps and wiring. A pipeline is itself a codec: its interface has the
-same structure as a leaf codec signature.
+orchestration. Steps are connected by wiring references: dot-notation
+strings that name the source of each step's input, whether a pipeline input, a
+constant, or an output port of another step. Each direction (encode and decode)
+is defined independently with its own steps and wiring. A pipeline is itself a
+codec: its interface has the same structure as a leaf codec signature.
 
 - Full specification: [Pipeline Model](03_codecs/02_pipeline.md)
 
@@ -141,22 +143,28 @@ runs each step, routing data between steps according to the wiring references.
 
 The engine treats all codec implementations uniformly. A pipeline step
 references a codec by its canonical identifier; the engine resolves it to
-either a standard library implementation or a WASM module. The choice is
-invisible to the pipeline definition and to the format driver.
+either a native implementation or a WASM module. The choice is invisible to
+the pipeline definition and to the format driver.
 
-The engine resolves codecs from two sources:
+The engine can resolve codecs from a variety of sources: bundled native
+implementations, native plugins, locally cached WASM modules, remote
+registries, direct URLs, or even codec modules embedded within a data file.
 
-**The standard library** contains native compiled implementations of widely-used
-codecs: the pure-bytes compressors (zstd, lz4, deflate, gzip, bzip2, snappy,
-brotli), common pre-compression transforms (shuffle, bitshuffle, delta), and
-other codecs where performance is critical and the algorithm is well-established.
-These run at full native speed with no sandbox overhead. The standard library is
-the pragmatic core: the codecs that most formats need most of the time.
+Resolved codecs take one of two forms:
 
-**The WASM runtime** executes codecs distributed as portable WebAssembly
-modules. A WASM codec is a Component Model component implementing a defined
-interface (`encode` and `decode` functions operating on named port maps). WASM
-codecs are:
+**Native implementations** are compiled directly into the runtime or installed
+as plugins. The standard library bundles widely-used codecs — the pure-bytes
+compressors (zstd, lz4, deflate, gzip, bzip2, snappy, brotli), common
+pre-compression transforms (shuffle, bitshuffle, delta), and other codecs where
+performance is critical and the algorithm is well-established. These run at
+full native speed with no sandbox overhead. Beyond the bundled set, native
+codecs can be installed as plugins, discoverable by the runtime at load time,
+to support large or specialized codecs without bloating the core runtime.
+
+**WASM modules** are executed by the engine's WASM runtime. Cylf supports two
+WASM backends: Component Model components, which use the Canonical ABI for
+typed, language-agnostic codec authoring; and Core WASM modules, which exchange
+data via a binary port-map format in linear memory. WASM codecs are:
 
 - **Portable**: the same `.wasm` binary runs on any OS and architecture. The
   runtime compiles it to native machine code on first use and caches the result.
@@ -165,15 +173,15 @@ codecs are:
 - **Distributable**: modules can be fetched from registries (OCI artifacts,
   HTTPS, or the emerging WASM component registry ecosystem) on demand, cached
   locally, and verified via signatures.
-- **Language-agnostic**: any language with a WASM Component Model toolchain
-  (Rust, C/C++, Python, Go) can produce a conforming codec.
+- **Language-agnostic**: any language with a WASM toolchain can produce a
+  conforming codec.
 
 The WASM runtime is the extensibility mechanism. Data producers can adopt new
-codecs, format-specific variants, or experimental compression algorithms without
-requiring consumers to update their client libraries. As long as the codec
-module can be fetched and executed by the WASM runtime, any consumer with a
-Cylf-based toolchain can decode the data — no per-codec library updates, no
-dependency chasing, no platform-specific builds.
+codecs, format-specific variants, or experimental compression algorithms
+without requiring consumers to update their client libraries. As long as the
+codec module can be fetched and executed by the WASM runtime, any consumer with
+a Cylf-based toolchain can decode the data, with no per-codec library updates,
+no dependency chasing, no platform-specific builds.
 
 - Runtime specification: [Codec Contract](04_runtime/01_codec_contract.md)
 - Distribution strategy: [Distribution & Registry](04_runtime/02_distribution.md)
@@ -240,7 +248,7 @@ Data Orchestration](07_proposals/01_orchestration.md).
 - [RFC: CCRP and the Cylf Ecosystem](07_proposals/02_ccrp.md)
 
 **Implementation:**
-- [chonkle](https://github.com/cylf-dev/chonkle) — Proof-of-concept Python
+- [chonkle](https://github.com/cylf-dev/chonkle): Proof-of-concept Python
   host for the codec runtime and pipeline engine. Research implementation; not
   intended as the reference runtime.
 
