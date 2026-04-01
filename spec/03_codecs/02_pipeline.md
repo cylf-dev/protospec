@@ -11,8 +11,6 @@ a format driver constructs a pipeline definition, and the engine executes it.
 
 Pipelines are defined in JSON.
 
----
-
 ## Pipeline Object
 
 ```json
@@ -69,6 +67,9 @@ Pipelines are defined in JSON.
     "outputs": {
       "bytes": "steps.unpredict.bytes"
     }
+  },
+  "sources": {
+    "tiff-predictor-2": "https://example.com/cylf/codecs/tiff/predictor/2.wasm"
   }
 }
 ```
@@ -94,16 +95,16 @@ inputs using the `constants.<name>` namespace.
 
 ### `sources` (object, optional)
 
-Maps codec_ids to URIs for codec artifacts. Supported URI schemes: `file://`,
-`https://`, `oci://`. These are advisory fetch hints: if a codec_id cannot be
+Maps `codec_id`s to URIs for codec artifacts. Supported URI schemes: `file://`,
+`https://`, `oci://`. These are advisory fetch hints: if a `codec_id` cannot be
 resolved from locally available modules, the engine may download from the URI
-listed here. The engine is not required to use these URIs — it may prefer
+listed here. The engine is not required to use these URIs; it may prefer
 locally cached modules, user-configured overrides, or registry lookups.
 
 ### `encode` and `decode` (objects, at least one required)
 
 Each direction block defines the pipeline's interface and implementation for
-that direction. A pipeline may define both directions or only one — a
+that direction. A pipeline may define both directions or only one. A
 unidirectional pipeline (e.g. one that wraps a lossy codec) defines only the
 direction it supports.
 
@@ -119,8 +120,8 @@ codec's input ports (`type`, `required`, `default`). See the
 #### `steps` (object, required)
 
 A named map of step objects defining the DAG for this direction. Keys are step
-names — unique identifiers used in wiring references. Order in JSON does not
-matter; the engine determines execution order via topological sort.
+names, which become unique identifiers used in wiring references. Order in JSON
+does not matter; the engine determines execution order via topological sort.
 
 See [Steps](#steps) below.
 
@@ -130,16 +131,15 @@ Maps each output port name to the step port that produces it. The key is the
 name callers use to retrieve results; the value is a wiring reference of the
 form `steps.<step_name>.<port>`.
 
-Output types are not declared here — they are derived from the referenced step's
+Output types are not declared here, but are derived from the referenced step's
 codec signature during validation.
-
----
 
 ## A Pipeline Is a Codec
 
 A pipeline's `encode` and `decode` blocks have the same structure as a leaf
-codec's signature. Strip the `steps` from each direction block and resolve the
-output wiring references to types, and you have a leaf codec signature.
+codec's signature. Strip the pipeline-specific machinery (`steps`, `constants`,
+`sources`) and resolve the output wiring references to types, and you have a
+leaf codec signature.
 
 This means:
 
@@ -147,14 +147,12 @@ This means:
   against the same rules as a leaf codec. Any system that accepts a codec
   signature can accept a pipeline's derived signature.
 - **Uniform treatment.** Format drivers, registries, and tooling do not need to
-  distinguish between leaf codecs and pipelines — both present the same
+  distinguish between leaf codecs and pipelines, as both present the same
   interface.
 
 A unidirectional pipeline (one that defines only `encode` or only `decode`)
-derives a unidirectional codec signature — equivalent to a leaf codec that
+derives a unidirectional codec signature, equivalent to a leaf codec that
 implements only one direction.
-
----
 
 ## Steps
 
@@ -195,13 +193,18 @@ Maps each codec input port name to a wiring reference. The key is the port name
 as declared in the codec signature for the active direction; the value is a
 wiring reference (see [Wiring References](#wiring-references)).
 
-The engine validates step inputs against the codec's signature for the direction
-the step appears in. A step in the `encode` block is validated against the
-codec's `encode.inputs`; a step in the `decode` block is validated against the
-codec's `decode.inputs`. Every required input must be wired or have a default in
-the codec signature.
+The engine validates step inputs against the codec's signature for the
+direction the step appears in. A step in the `encode` block is validated
+against the codec's `encode.inputs`; a step in the `decode` block is validated
+against the codec's `decode.inputs`. Every required input must be wired or have
+a default in the codec signature.
 
----
+Note that outputs are intentionally absent here: they are defined by the codec
+signature, and any specification here would be redundant. Where an output of a
+step is wired to the input of another, validation must ensure the output type
+matches the expected input type. As stated above, when an output is wired to
+the pipeline output, that pipeline output takes the type of the output as
+defined by the codec signature.
 
 ## Wiring References
 
@@ -220,8 +223,6 @@ codec's `decode.outputs`.
 
 A step output may be referenced by multiple downstream steps (fan-out). A step
 input must be wired to exactly one source.
-
----
 
 ## Both Directions Explicit
 
@@ -248,37 +249,50 @@ This explicitness has several consequences:
   have different port structures in each direction are wired naturally — each
   direction's steps reference the appropriate ports.
 
-For simple bidirectional pipelines (linear chains of symmetric `bytes → bytes`
-codecs), the two direction blocks will be near-mirrors of each other. The
-redundancy is intentional — it keeps both directions visible and verifiable.
-
----
-
-## Self-Describing vs Externally-Parameterized Codecs
-
-A codec whose decode parameters are embedded in the compressed data itself is
-**self-describing** — and therefore **atomic**. It cannot be decomposed into a
-pipeline, because the engine would need to parse the codec's internal header to
-supply parameters to sub-steps. The chunk enters the codec as-is and exits
-decoded.
-
-Example: Blosc embeds its compressor name, shuffle mode, element size, and block
-size in a header within the chunk bytes. Blosc is atomic.
-
-A codec whose parameters come from external metadata — supplied by the
-format driver via the pipeline — can be freely composed as a pipeline step. The
-format driver provides the parameters as pipeline inputs or constants.
-
-Example: zstd does not embed any metadata in its frame that the format driver
-needs to extract. It can be a step in any pipeline.
-
-This distinction determines whether a codec can participate in pipeline
-composition. The [Codec Inventory](03_inventory.md) documents which codecs
-are atomic and which are composable.
-
----
+For simple bidirectional pipelines (linear chains of symmetric codecs), the two
+direction blocks can be exact mirrors of each other. Such redundancy is
+intentional as it keeps both directions visible and verifiable.
 
 ## Open Design Questions
+
+### Constants vs inline values
+
+The `constants` block provides named, typed values that can be referenced from
+step inputs. However, the same effect could be achieved by allowing step inputs
+to accept inline value descriptors directly:
+
+```json
+"unpredict": {
+  "codec_id": "tiff-predictor-2",
+  "inputs": {
+    "bytes": "steps.decompress.bytes",
+    "bytes_per_sample": {"type": "int", "value": 2},
+    "width": {"type": "int", "value": 1024}
+  }
+}
+```
+
+Doing so would eliminate need for the `constants` block.
+
+Given this insight, we need to determine if we should support inline values,
+and if so whether we should support constants at all. The trade-offs:
+
+- **Value reuse semantics.** Constants make shared values explicit. When two
+  steps both reference `constants.bytes_per_sample`, the reader knows both
+  values are the same *by definition*. With inline values, identical values at
+  two sites could be coincidental or intentional — the distinction is lost.
+- **Uniform input syntax.** With constants, every step input value is a wiring
+  reference (a string). Without them, inputs may be either a string reference or
+  an inline descriptor object, requiring a type check to distinguish the two
+  forms. Constants keep the input interface uniform.
+- **Indirection cost.** Constants introduce a layer of indirection: the reader
+  must look up the constant definition to see the actual value. This indirection
+  is not opaque — the value is right there in the pipeline — but it is not
+  perfectly transparent either.
+
+We need to consider the above and reach a consensus as to whether constants
+carry their weight or should be replaced by inline values, or whether both
+forms should be supported.
 
 ### Conditional pipeline steps
 
@@ -291,8 +305,6 @@ branching. This is an open design question — see the
 proposed approach using choice nodes at the plan level. Whether conditional
 branching belongs in the codec pipeline model itself or only in the higher-level
 plan format is not yet decided.
-
----
 
 ## Complete Example: Verified Zstd with Dictionary Support
 
@@ -326,7 +338,9 @@ Codec signatures referenced:
     }
   }
 }
+```
 
+```json
 {
   "codec_id": "crc32c",
   "encode": {
@@ -414,11 +428,14 @@ Pipeline definition:
 Key observations:
 
 - **The pipeline's `encode` and `decode` blocks are its codec signature.**
-  Strip the `steps` and resolve output types, and you have a leaf codec
-  signature with `level` and `dictionary` in encode, `dictionary` in decode.
-- **`level` appears only in `encode`.** It is wired from `inputs.level` to the
-  zstd step. No `encode_only` flag needed — its absence from `decode` makes the
-  directionality explicit.
+  Strip pipeline-specific fields and resolve output types, and you have a leaf
+  codec signature with `level` and `dictionary` in encode, `dictionary` in
+  decode.
+- **`level` appears only in `encode`.** `zstd` only needs the level on encode
+  to know how much effort it should spend optimizing the compression.
+  `compress.inputs.level` is wired from `inputs.level`. `level` is an
+  encode-only parameter, its absence from `decode` making that directionality
+  explicit.
 - **`throw_error` is a constant, not a pipeline input.** The pipeline author
   has decided this is always `true`, so it's baked in. A different pipeline
   could surface it as a decode input instead.
