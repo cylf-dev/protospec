@@ -52,6 +52,9 @@ patterns—and delegates the codec work to shared infrastructure. Formats that
 require custom or non-standard codecs can implement and distribute them as
 WASM modules, making them immediately available to users.
 
+The [Architecture](02_architecture.md) document describes these components and
+their boundaries in detail.
+
 ## Composition, Not Just Compression
 
 Many formats apply codecs in sequence: a TIFF image tile might be differenced
@@ -122,19 +125,6 @@ strategy within Cylf's model and an open area of design. Beyond distribution,
 Cylf's composition model is DAG-based rather than linear, and the interface is
 formally typed rather than informal. See
 [Comparison with F3](05_design/03_f3_comparison.md) for a detailed analysis.
-
-## What Cylf Is Not
-
-Cylf is a codec layer. It handles encoding and decoding of data chunks, the
-transformation of bytes through pipelines of codecs. It does not define file
-formats, manage storage, schedule I/O, or parse queries. Those responsibilities
-belong to the format drivers, storage systems, and query engines that sit above
-the codec layer.
-
-Cylf defines the interface that format drivers target via codec signatures and
-the pipeline schema, but it does not prescribe how format drivers are built or
-how they interact with storage. The [Architecture](02_architecture.md) document
-describes the boundaries in detail.
 
 ## Origin of the Name Cylf
 
