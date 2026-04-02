@@ -1,14 +1,50 @@
 # Codec Contract
 
-This document specifies the interface contract between the Cylf pipeline engine
-and codec implementations. All codecs — regardless of backend — present the
-same logical interface: a `signature` operation that returns the codec's
-signature, and an `encode` operation and a `decode` operation (or just one, for
-unidirectional codecs), each accepting named inputs and producing named outputs
-as defined in the signature.
+This document defines the contract between the Cylf pipeline engine and codec
+implementations. All codecs present the same logical interface regardless of
+backend. Cylf supports three codec backends: Component Model Wasm, Core Wasm,
+and Native.
 
-Cylf supports three codec backends. The logical interface is the same across
-all three; the backends differ in how data crosses the module boundary.
+## Interface
+
+Every codec exports three operations:
+
+- **`signature`** — returns the codec's signature (a JSON object declaring its
+  interface).
+- **`encode`** — accepts named inputs and produces named outputs for the encode
+  direction.
+- **`decode`** — accepts named inputs and produces named outputs for the decode
+  direction.
+
+Unidirectional codecs export all three operations but return an error from the
+unsupported direction.
+
+`encode` and `decode` exchange data through **port maps**: ordered lists of
+`(name, bytes)` pairs. Port names route data between pipeline steps — the
+engine matches step outputs to downstream step inputs by name. Codec parameters
+(non-bytes inputs like compression level or element size) arrive as named port
+entries serialized as UTF-8 JSON bytes.
+
+### Signature
+
+Every codec must carry a signature: a JSON object declaring the codec's
+interface in each direction it supports. The `signature` export must return
+that JSON signature object when called. For Wasm codecs, the signature is also
+embedded in the `.wasm` binary as a `cylf:signature` custom section. See the
+[Signature Model](../03_codecs/01_signature.md) for the full specification of
+the signature format, type vocabulary, and port descriptor fields.
+
+#### Validation
+
+The pipeline engine validates signatures during pipeline preparation by
+verifying:
+
+- each step's input wiring satisfies its codec's signature in the active
+  direction. Every required input (those that are not explicitly
+  `"required": false`) must be wired.
+- any input wiring referencing a preceding step's output names a port declared
+  in that step's outputs for the active direction.
+- all connected ports are type-compatible.
 
 ## Backends
 
@@ -22,53 +58,6 @@ choice; the toolchain generates memory management and serialization glue.
 This is the recommended backend for new codecs. It provides load-time interface
 verification, automated code generation, language-agnostic authoring, and
 ecosystem alignment with WASI P2 and the Bytecode Alliance toolchain.
-
-### Core Wasm
-
-Core Wasm codecs are `.wasm` modules (magic bytes `01 00 00 00`) that export
-raw functions using Wasm's numeric primitives (`i32`, `i64`, `f32`, `f64`).
-Data exchange uses a binary port-map wire format; the host reads and writes
-the module's linear memory directly.
-
-Core Wasm provides faster host-to-module data transfer under Python hosts (~10
-GB/s via `Memory.read()`/`Memory.write()` vs ~1.7 MB/s for the Component Model
-Canonical ABI under wasmtime-py). Under a native (Rust/C) host, both backends
-achieve memcpy speed and the performance difference disappears. See
-[Performance & Data Copy Accounting](../05_design/02_perf_accounting.md) for
-measurements.
-
-### Native
-
-Native codecs run directly in the host process as compiled libraries. No
-sandbox, no Wasm runtime overhead. Zero-copy data transfer between adjacent
-native codecs. Native codecs have unrestricted access to hardware (SIMD, GPU,
-hardware crypto).
-
-The standard library of widely-used codecs (zstd, lz4, deflate, shuffle,
-delta, etc.) consists of native implementations.
-
-## Signature
-
-Every codec must carry a signature: a JSON object declaring the codec's
-interface in each direction it supports. The `signature` export must return
-that JSON signature object when called. For Wasm codecs, the signature is also
-embedded in the `.wasm` binary as a `cylf:signature` custom section. See the
-[Signature Model](../03_codecs/01_signature.md) for the full specification of
-the signature format, type vocabulary, and port descriptor fields.
-
-### Validation
-
-The pipeline engine validates signatures during pipeline preparation by
-verifying:
-
-- each step's input wiring satisfies its codec's signature in the active
-  direction. Every required input (those that are not explicitly
-  `"required": false`) must be wired.
-- any input wiring referencing a preceding step's output names a port declared
-  in that step's outputs for the active direction.
-- all connected ports are type-compatible.
-
-## Component Model Interface
 
 A Component Model codec must export the `cylf:codec/transform` interface.
 The WIT definition:
@@ -92,14 +81,7 @@ world codec {
 
 `signature` returns the codec's signature as UTF-8 JSON bytes.
 
-Port maps are ordered lists of `(port-name, bytes)` pairs. Port names are
-conventions used to route data between pipeline steps — the engine matches
-step outputs to downstream step inputs by name.
-
-Codec parameters (non-bytes inputs like compression level or element size)
-arrive as named port entries serialized as UTF-8 JSON bytes.
-
-### Requirements
+#### Requirements
 
 - The component must export the `transform` interface under the key
   `"cylf:codec/transform"`.
@@ -110,12 +92,24 @@ arrive as named port entries serialized as UTF-8 JSON bytes.
   requires it). The unsupported direction should return
   `Err("encode not supported")` or `Err("decode not supported")`.
 
-## Core Wasm Interface
+### Core Wasm
+
+Core Wasm codecs are `.wasm` modules (magic bytes `01 00 00 00`) that export
+raw functions using Wasm's numeric primitives (`i32`, `i64`, `f32`, `f64`).
+Data exchange uses a binary port-map wire format; the host reads and writes
+the module's linear memory directly.
+
+Core Wasm provides faster host-to-module data transfer under Python hosts (~10
+GB/s via `Memory.read()`/`Memory.write()` vs ~1.7 MB/s for the Component Model
+Canonical ABI under wasmtime-py). Under a native (Rust/C) host, both backends
+achieve memcpy speed and the performance difference disappears. See
+[Performance & Data Copy Accounting](../05_design/02_perf_accounting.md) for
+measurements.
 
 A Core Wasm codec is a `wasm32-wasi` reactor module that exports memory,
 allocation functions, and `signature`/`encode`/`decode` entry points.
 
-### Required exports
+#### Required exports
 
 | Export | Signature | Description |
 |---|---|---|
@@ -126,7 +120,7 @@ allocation functions, and `signature`/`encode`/`decode` entry points.
 | `encode` | `(port_map_ptr: i32, port_map_len: i32) -> i64` | Encode operation |
 | `decode` | `(port_map_ptr: i32, port_map_len: i32) -> i64` | Decode operation |
 
-### Port-map binary format
+#### Port-map binary format
 
 All multi-byte integers are little-endian.
 
@@ -141,7 +135,7 @@ For each entry:
 
 No padding or alignment between fields.
 
-### Calling convention
+#### Calling convention
 
 1. The host calls `alloc(input_size)` to reserve space in the module's linear
    memory.
@@ -157,12 +151,20 @@ No padding or alignment between fields.
 The memory ownership semantics for the buffer returned by `signature` are not
 yet defined — see [Open Questions](../06_future.md#core-wasm-signature-memory-ownership).
 
-## Native Interface
+### Native
+
+Native codecs run directly in the host process as compiled libraries. No
+sandbox, no Wasm runtime overhead. Zero-copy data transfer between adjacent
+native codecs. Native codecs have unrestricted access to hardware (SIMD, GPU,
+hardware crypto).
+
+The standard library of widely-used codecs (zstd, lz4, deflate, shuffle,
+delta, etc.) consists of native implementations.
 
 Native codecs are compiled libraries (shared or statically linked) that expose
-a C ABI. They run in-process with no sandbox.
+a C ABI.
 
-### Required exports
+#### Required exports
 
 Native codecs must export the following C-callable symbols:
 
