@@ -5,15 +5,21 @@ specification of the cylf ecosystem.
 
 It's expected that most things in this repo will move to a new long-term home
 as the ecosystem matures and the necessary repository structures become more
-apparent. Do not plan on docuements in this repo being a persistent resource in
+apparent. Do not plan on documents in this repo being a persistent resource in
 this location.
+
+## Specification
+
+The working specification documents live in the [`spec/`](spec/) directory. See
+the [spec README](spec/README.md) for a guided overview and links to individual
+documents.
 
 ## What is cylf?
 
 Cylf is an attempt to build a new foundational ecosystem for encoding/decoding
-data. It's genesis is the recognition that all data formats are roughly the
+data. Its genesis is the recognition that all data formats are roughly the
 same and contain three common things: the data in chunks, some metadata
-desribing that data, and specifically metadata describing the chunk
+describing that data, and specifically metadata describing the chunk
 encoding(s). With this understanding we can envision a codec library that
 provides the ability to encode and decode data chunks in any format simply by
 reprojecting the encoding metadata into a common representation.
