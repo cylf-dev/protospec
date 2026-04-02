@@ -15,8 +15,6 @@ These axes interact. The combination chosen affects performance, portability,
 security, testability, and operational complexity. Both axes are analyzed
 separately, then the interactions are summarized.
 
----
-
 ## Background: Data Movement at Step Boundaries
 
 Understanding copy counts is foundational to both analyses. Wasm's sandbox model
@@ -74,8 +72,6 @@ identical buffer sizes. This bottleneck is in the Python binding layer; it is no
 a property of the Component Model architecture. The correct fix is a native
 (Rust or C) orchestrator.
 
----
-
 ## Part 1: Mixed Native + Wasm vs. All-Wasm Pipelines
 
 ### Definitions
@@ -90,8 +86,6 @@ runtime (e.g., Wasmtime). The runtime's sandbox enforces memory isolation.
 > Note: `.wasm` files are not directly executable. The runtime compiles them to
 > native machine code on first load and can cache the result on disk.
 > The `.wasm` artifact is portable; the compiled output is platform-specific.
-
----
 
 ### Mixed Native and Wasm Pipelines
 
@@ -138,8 +132,6 @@ runtime (e.g., Wasmtime). The runtime's sandbox enforces memory isolation.
 - **No static composition.** `wasm-tools compose` and `wac` (the WebAssembly
   composition tools) operate only on Component Model components. A pipeline that
   includes native steps cannot be statically merged into a single artifact.
-
----
 
 ### All-Wasm Pipelines
 
@@ -194,8 +186,6 @@ runtime (e.g., Wasmtime). The runtime's sandbox enforces memory isolation.
 - **Debugging requires runtime-aware tools.** Useful stack traces from Wasm
   frames require DWARF debug info and runtime support for source-mapped frames.
 
----
-
 ### Summary: Mixed vs. All-Wasm
 
 | Property                    | Mixed Native + Wasm                  | All-Wasm                              |
@@ -210,8 +200,6 @@ runtime (e.g., Wasmtime). The runtime's sandbox enforces memory isolation.
 | Hardware access             | Full (native steps)                  | Limited to WASI + host functions      |
 | Debugging                   | Native steps: standard tools; Wasm steps: runtime-aware | Runtime-aware throughout |
 | Orchestrator code paths     | Multiple (by codec type)             | One                                   |
-
----
 
 ## Part 2: Core Module ABI vs. Component Model
 
@@ -232,8 +220,6 @@ distinct binary format (different magic bytes: `0d 00 01 00` vs. `01 00 00 00`
 for Core modules). Its interface is declared in WIT; the Canonical ABI handles
 all type marshalling automatically. The component's linear memory is hidden
 from the host — there is no `Memory.write()` path available.
-
----
 
 ### Core Module ABI
 
@@ -274,8 +260,6 @@ from the host — there is no `Memory.write()` path available.
 
 - **No rich type system at the boundary.** All values must be encoded as
   integers or floats. Complex types require a manual serialization convention.
-
----
 
 ### Component Model
 
@@ -325,8 +309,6 @@ from the host — there is no `Memory.write()` path available.
 - **Binary size overhead.** Component wrappers add format overhead (typically
   kilobytes).
 
----
-
 ### Hybrid: Both Core ABI and Component Model in One Pipeline
 
 **Pros**
@@ -355,8 +337,6 @@ from the host — there is no `Memory.write()` path available.
 - **Not a stable architectural target.** The hybrid state introduces complexity
   that pays off only during a migration.
 
----
-
 ### Summary: Core ABI vs. Component Model vs. Hybrid
 
 | Property                        | Core Module ABI                       | Component Model                    | Hybrid                             |
@@ -374,8 +354,6 @@ from the host — there is no `Memory.write()` path available.
 | Security model                  | Sandboxed; memory readable by host    | Full isolation                     | Inconsistent per codec              |
 | Ecosystem alignment             | General Wasm                          | Bytecode Alliance / WASI P2        | Mixed                               |
 | Orchestrator code paths         | One                                   | One                                | Two                                 |
-
----
 
 ## Part 3: Interaction of the Two Axes
 
@@ -406,8 +384,6 @@ Static composition eliminates inter-step copies by merging the pipeline at build
 time. A native orchestrator eliminates the Python binding cost but keeps the
 per-step copies. Both improvements are independent and composable.
 
----
-
 ## Part 4: Cylf's Position
 
 Cylf supports both native and Wasm codecs. The standard library provides native
@@ -432,8 +408,6 @@ The proof-of-concept implementation (chonkle) demonstrated all three backends
 (Component Model, Core Wasm, native) in a Python host, which informed the
 performance characterization in this document. The reference runtime will be a
 native host, where the Canonical ABI bottleneck does not apply.
-
----
 
 ## Appendix: Benchmark Data
 

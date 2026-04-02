@@ -4,8 +4,6 @@ References:
 - [F3: The Open-Source Data File Format for the Future (CMU SIGMOD 2025)](https://db.cs.cmu.edu/papers/2025/zeng-sigmod2025.pdf)
 - [github.com/future-file-format/F3](https://github.com/future-file-format/F3)
 
----
-
 ## What F3 proposes
 
 F3 is a replacement for Parquet/ORC — a self-describing columnar file format
@@ -24,8 +22,6 @@ for analytics workloads.
 - No explicit WIT or Component Model usage — a "general-purpose API" for
   Wasm decoders without a formal interface type system.
 
----
-
 ## Key differences
 
 | Dimension | F3 | Cylf |
@@ -39,8 +35,6 @@ for analytics workloads.
 | **Bidirectionality** | Separate write (encode) and read (decode) paths | Explicit encode and decode definitions per codec and pipeline |
 | **Self-description** | Data files are self-describing (decoder embedded) | Pipelines are separate from data; self-description via embedded codecs is an open area |
 | **Metadata format** | FlatBuffers for column schema and statistics | Codec signatures embedded in `.wasm` binaries |
-
----
 
 ## F3's advantages over Cylf's approach
 
@@ -65,8 +59,6 @@ complete chunks: a step receives a full port-map and emits a full port-map.
 **Ecosystem integration target.** F3 aims to plug into Spark, DuckDB, and Pandas
 by replacing Parquet. Cylf is infrastructure for format libraries, not a
 query-engine integration point.
-
----
 
 ## Cylf's advantages over F3's approach
 
@@ -99,8 +91,6 @@ penalty for its sandboxed path.
 **Concrete distribution model.** Cylf resolves codecs from `file://`, `https://`,
 and `oci://` URIs, with remote artifacts cached locally. F3 notes "central
 repository verification proposed" without specifying it.
-
----
 
 ## Where the problems diverge
 

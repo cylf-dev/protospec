@@ -10,8 +10,6 @@ C) orchestrator for production use.
 The measurements in this document were taken in the proof-of-concept
 implementation (chonkle) using wasmtime-py 41 and wasmtime-rs 41.
 
----
-
 ## Fundamental Constraint
 
 Wasm's sandbox model means a module can only read and write its own linear
@@ -19,8 +17,6 @@ memory — it cannot dereference a host pointer or access any other module's
 memory. The host can read and write the module's linear memory, but not the
 reverse. This isolation is why data copies at step boundaries are unavoidable:
 data must be copied in before processing and copied out after.
-
----
 
 ## Per-Invocation Copy Anatomy
 
@@ -49,8 +45,6 @@ Wasm linear memory
 The *cost* of these copies depends on the Wasm interface style and the host
 language.
 
----
-
 ## Copy Counts by Backend Combination
 
 The table below shows the number of copies per inter-step edge for different
@@ -69,8 +63,6 @@ Component Model edges always incur 2 copies because the component's linear
 memory is hidden from the host — data must be lifted out through the Canonical
 ABI, then lowered back in at the destination. Core Wasm edges can achieve 1 copy
 because the host has direct access to both modules' linear memories.
-
----
 
 ## The Canonical ABI Bottleneck Under Python
 
@@ -151,8 +143,6 @@ Core Wasm modules do not have this limitation — their linear memory is
 directly accessible, which is why Core Wasm transfers run at `memcpy` speed
 even from Python.
 
----
-
 ## Architectural Implications
 
 ### A native orchestrator is required for production
@@ -183,8 +173,6 @@ in the Python host disappears. The choice between the two becomes about
 interface richness (Component Model provides load-time verification, code
 generation, and a rich type system) and runtime compatibility (Core Wasm runs
 on every runtime; Component Model requires Wasmtime or Wasmer 4+).
-
----
 
 ## Copy Reduction Approaches
 
@@ -249,8 +237,6 @@ Python iteration with wasmtime-rs's bulk `memory.write()` calls. This would
 bring Component Model copies to `memcpy` speed (~10 GB/s) without changing the
 copy count. This is a mitigation for the Python host specifically; a native
 orchestrator achieves the same result without a separate extension.
-
----
 
 ## Summary
 
