@@ -2,14 +2,13 @@
 
 This document specifies the interface contract between the Cylf pipeline engine
 and codec implementations. All codecs — regardless of backend — present the
-same logical interface: an `encode` operation and a `decode` operation (or just
-one, for unidirectional codecs), each accepting named inputs and producing named
-outputs as defined in the codec's signature.
+same logical interface: a `signature` operation that returns the codec's
+signature, and an `encode` operation and a `decode` operation (or just one, for
+unidirectional codecs), each accepting named inputs and producing named outputs
+as defined in the signature.
 
 Cylf supports three codec backends. The logical interface is the same across
 all three; the backends differ in how data crosses the module boundary.
-
----
 
 ## Backends
 
@@ -31,11 +30,12 @@ raw functions using Wasm's numeric primitives (`i32`, `i64`, `f32`, `f64`).
 Data exchange uses a binary port-map wire format; the host reads and writes
 the module's linear memory directly.
 
-Core Wasm provides faster host-to-module data transfer under Python hosts
-(~10 GB/s via `Memory.read()`/`Memory.write()` vs ~1.7 MB/s for the Component
-Model Canonical ABI under wasmtime-py). Under a native (Rust/C) host, both
-backends achieve memcpy speed and the performance difference disappears. See
-[Performance & Data Copy Accounting](../05_design/02_perf_accounting.md) for measurements.
+Core Wasm provides faster host-to-module data transfer under Python hosts (~10
+GB/s via `Memory.read()`/`Memory.write()` vs ~1.7 MB/s for the Component Model
+Canonical ABI under wasmtime-py). Under a native (Rust/C) host, both backends
+achieve memcpy speed and the performance difference disappears. See
+[Performance & Data Copy Accounting](../05_design/02_perf_accounting.md) for
+measurements.
 
 ### Native
 
@@ -47,92 +47,40 @@ hardware crypto).
 The standard library of widely-used codecs (zstd, lz4, deflate, shuffle,
 delta, etc.) consists of native implementations.
 
----
-
 ## Signature
 
 Every codec must carry a signature: a JSON object declaring the codec's
-interface in each direction it supports. For Wasm codecs, the signature is
-embedded in the `.wasm` binary as a custom section. For native codecs, the
-signature is bundled alongside the implementation.
-
-### Format
-
-```json
-{
-  "codec_id": "zstd",
-  "encode": {
-    "inputs": {
-      "bytes": {"type": "bytes"},
-      "level": {"type": "int", "default": 3},
-      "dictionary": {"type": "bytes", "required": false}
-    },
-    "outputs": {
-      "bytes": {"type": "bytes"}
-    }
-  },
-  "decode": {
-    "inputs": {
-      "bytes": {"type": "bytes"},
-      "dictionary": {"type": "bytes", "required": false}
-    },
-    "outputs": {
-      "bytes": {"type": "bytes"}
-    }
-  }
-}
-```
-
-### Fields
-
-- **`codec_id`** (string, required) — canonical codec identifier (e.g.
-  `"zstd"`, `"tiff-predictor-2"`).
-- **`encode`** (object, optional) — the codec's interface when encoding. Must
-  contain `inputs` and `outputs`.
-- **`decode`** (object, optional) — the codec's interface when decoding. Must
-  contain `inputs` and `outputs`.
-
-At least one of `encode` or `decode` must be present. A codec that defines only
-one is unidirectional.
-
-Each direction's `inputs` is a map of port descriptors. Each port descriptor
-has:
-
-- `type` (string, required) — one of: `"bytes"`, `"string"`, `"int"`, `"uint"`,
-  `"float"`, `"bool"`, `"uint[]"`, `"dtype_desc"`.
-- `required` (bool, optional, default `true`) — whether the caller must supply
-  this input. A `default` value implies `required: false`.
-- `default` (optional) — default value when not supplied.
-
-Each direction's `outputs` is a map of port descriptors, each with only `type`.
-
-See the [Signature Model](../03_codecs/01_signature.md) for the full specification.
+interface in each direction it supports. The `signature` export must return
+that JSON signature object when called. For Wasm codecs, the signature is also
+embedded in the `.wasm` binary as a `cylf:signature` custom section. See the
+[Signature Model](../03_codecs/01_signature.md) for the full specification of
+the signature format, type vocabulary, and port descriptor fields.
 
 ### Validation
 
-The pipeline engine validates signatures during pipeline preparation:
+The pipeline engine validates signatures during pipeline preparation by
+verifying:
 
-- Each step's input wiring is checked against the codec's signature for the
-  active direction. Every required input (those without a `default`) must be
-  wired.
-- Output port references from downstream steps are checked against the codec's
-  declared outputs for the active direction.
-- Type compatibility between connected ports is verified.
-
----
+- each step's input wiring satisfies its codec's signature in the active
+  direction. Every required input (those that are not explicitly
+  `"required": false`) must be wired.
+- any input wiring referencing a preceding step's output names a port declared
+  in that step's outputs for the active direction.
+- all connected ports are type-compatible.
 
 ## Component Model Interface
 
-A Component Model codec must export the `chonkle:codec/transform` interface.
+A Component Model codec must export the `cylf:codec/transform` interface.
 The WIT definition:
 
 ```wit
-package chonkle:codec@0.1.0;
+package cylf:codec@0.1.0;
 
 interface transform {
     type port-name = string;
     type port-map = list<tuple<port-name, list<u8>>>;
 
+    signature: func() -> list<u8>;
     encode: func(inputs: port-map) -> result<port-map, string>;
     decode: func(inputs: port-map) -> result<port-map, string>;
 }
@@ -141,6 +89,8 @@ world codec {
     export transform;
 }
 ```
+
+`signature` returns the codec's signature as UTF-8 JSON bytes.
 
 Port maps are ordered lists of `(port-name, bytes)` pairs. Port names are
 conventions used to route data between pipeline steps — the engine matches
@@ -152,7 +102,7 @@ arrive as named port entries serialized as UTF-8 JSON bytes.
 ### Requirements
 
 - The component must export the `transform` interface under the key
-  `"chonkle:codec/transform"`.
+  `"cylf:codec/transform"`.
 - The component must be WASIp2-compatible.
 - Return `Ok(port-map)` on success. Return `Err(string)` on failure; the engine
   surfaces the error string.
@@ -160,17 +110,10 @@ arrive as named port entries serialized as UTF-8 JSON bytes.
   requires it). The unsupported direction should return
   `Err("encode not supported")` or `Err("decode not supported")`.
 
-### Signature embedding
-
-The codec's signature must be embedded in the `.wasm` binary as a custom
-section at build time.
-
----
-
 ## Core Wasm Interface
 
 A Core Wasm codec is a `wasm32-wasi` reactor module that exports memory,
-allocation functions, and encode/decode entry points.
+allocation functions, and `signature`/`encode`/`decode` entry points.
 
 ### Required exports
 
@@ -179,6 +122,7 @@ allocation functions, and encode/decode entry points.
 | `memory` | Memory | Linear memory (provided by the Wasm toolchain) |
 | `alloc` | `(size: i32) -> i32` | Allocate `size` bytes; return pointer or 0 on failure |
 | `dealloc` | `(ptr: i32, size: i32)` | Free a buffer |
+| `signature` | `() -> i64` | Return signature JSON; packed `(ptr << 32) \| len` |
 | `encode` | `(port_map_ptr: i32, port_map_len: i32) -> i64` | Encode operation |
 | `decode` | `(port_map_ptr: i32, port_map_len: i32) -> i64` | Decode operation |
 
@@ -210,37 +154,33 @@ No padding or alignment between fields.
 5. The host reads the output port-map from linear memory via `Memory.read()`.
 6. The host calls `dealloc(output_ptr, output_len)` to free the output buffer.
 
-### Signature embedding
-
-Same as Component Model — the signature is embedded as a custom section in the
-`.wasm` binary.
-
----
+The memory ownership semantics for the buffer returned by `signature` are not
+yet defined — see [Open Questions](../06_future.md#core-wasm-signature-memory-ownership).
 
 ## Native Interface
 
-Native codecs wrap compiled libraries (e.g. libzstd, zlib) or provide
-standalone implementations in the host language. They run in-process with no
-sandbox.
+Native codecs are compiled libraries (shared or statically linked) that expose
+a C ABI. They run in-process with no sandbox.
 
-### Calling convention
+### Required exports
 
-Native codecs implement the same logical interface as Wasm codecs: an `encode`
-and a `decode` operation, each accepting a port-map (list of name/bytes pairs)
-and returning a port-map or an error.
+Native codecs must export the following C-callable symbols:
 
-The specific API depends on the host language. In a Rust host, a native codec
-implements a trait with `encode` and `decode` methods. In a Python host, a
-native codec implements a class with `call(direction, port_map)` and
-`signature()` methods.
+| Export | Signature | Description |
+|---|---|---|
+| `signature` | `(out_len: *mut u32) -> *const u8` | Return a pointer to the signature JSON and write its length to `out_len` |
+| `encode` | `(port_map_ptr: *const u8, port_map_len: u32, out_len: *mut u32) -> *const u8` | Encode operation |
+| `decode` | `(port_map_ptr: *const u8, port_map_len: u32, out_len: *mut u32) -> *const u8` | Decode operation |
+| `dealloc` | `(ptr: *const u8, len: u32)` | Free a buffer returned by `encode` or `decode` |
 
-### Signature
+`encode` and `decode` accept a serialized port-map and return a pointer to the
+output port-map, writing its length to `out_len`. Return `NULL` to signal an
+error. The port-map uses the same [binary format](#port-map-binary-format)
+defined in the Core Wasm section.
 
-Native codec signatures use the same JSON format as Wasm codec signatures. The
-signature is bundled alongside the implementation (as a JSON file, an embedded
-resource, or a programmatic return value from the codec's API).
-
----
+The `signature` function returns a pointer to the codec's signature as UTF-8
+JSON bytes. The returned buffer must remain valid for the lifetime of the
+loaded library (typically a static allocation).
 
 ## Backend Detection
 
@@ -248,19 +188,18 @@ The pipeline engine detects the backend from the resolved artifact:
 
 - `.wasm` file with component version header (`0d 00 01 00`) → Component Model
 - `.wasm` file with core version header (`01 00 00 00`) → Core Wasm
-- No `.wasm` file (resolved to a native implementation) → Native
+- no `.wasm` file (resolved to a native implementation) → Native
 
 The pipeline definition is agnostic to backend. The same pipeline executes
 correctly regardless of which backends its constituent codecs use.
 
----
-
 ## Further Reading
 
-- [Signature Model](../03_codecs/01_signature.md) — full specification of the codec
-  signature format
-- [Pipeline Model](../03_codecs/02_pipeline.md) — how codecs compose into executable DAGs
-- [Performance & Data Copy Accounting](../05_design/02_perf_accounting.md) — copy counts and
-  throughput across backends
-- [Pipeline Architecture Tradeoffs](../05_design/01_pipeline_arch.md) — design rationale
-  for supporting multiple backends
+- [Signature Model](../03_codecs/01_signature.md): full specification of the
+  codec signature format
+- [Pipeline Model](../03_codecs/02_pipeline.md): how codecs compose into
+  executable DAGs
+- [Performance & Data Copy Accounting](../05_design/02_perf_accounting.md):
+  copy counts and throughput across backends
+- [Pipeline Architecture Tradeoffs](../05_design/01_pipeline_arch.md): design
+  rationale for supporting multiple backends

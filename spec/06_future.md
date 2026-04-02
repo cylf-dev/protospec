@@ -158,6 +158,15 @@ The reference runtime will be a native (Rust or C) implementation, which
 eliminates the Canonical ABI performance bottleneck measured in the PoC. The
 reference runtime is planned but not yet started.
 
+### Core Wasm `signature` memory ownership
+
+The Core Wasm calling convention defines memory ownership for `encode`/`decode`
+(the codec owns the input buffer; the host calls `dealloc` on the output
+buffer), but does not specify ownership for the buffer returned by `signature`.
+Should the host call `dealloc` on it, or should the codec return a
+statically-allocated buffer that remains valid for the module's lifetime (as
+with native codecs)?
+
 ### Native codec plugin discovery
 
 Native codecs beyond the bundled standard library should be installable as
