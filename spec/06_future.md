@@ -180,6 +180,25 @@ combination — is not yet designed. The mechanism needs to support multiple
 installed implementations for the same `codec_id` (e.g. CPU vs GPU variants,
 SIMD-optimized vs reference implementations).
 
+#### Error representation and result semantics
+
+Error signaling is currently inconsistent across backends and limited in all
+of them. The Component Model WIT interface returns `result<port-map, string>`,
+providing an error string but no structured information. Core Wasm codecs
+return `0` and native codecs return `NULL` to signal failure, with no mechanism
+to communicate what went wrong. None of the backends provide structured error
+information through the port-map interface that is otherwise the uniform data
+exchange mechanism.
+
+A result monad design is needed so that the result of a codec or pipeline
+invocation uniformly carries either output data or structured error information
+(failing step, codec identity, error details). This likely involves rethinking
+how the port-map structure accommodates both success and error cases — whether
+through nesting, a wrapper type, or some other approach — and ensuring the
+design works uniformly across all backends. See
+[Pipeline Model § Error handling](03_codecs/02_pipeline.md#error-handling-and-result-semantics)
+and [Codec Contract § Error representation](04_runtime/01_codec_contract.md#error-representation).
+
 #### Codec resolution precedence
 
 The order in which the runtime checks for codec implementations — bundled
@@ -227,14 +246,12 @@ return an error for the unsupported direction). A future WIT revision could
 use optional exports or separate worlds for unidirectional codecs. This is
 blocked on WIT's support for optional exports.
 
-#### Codec inventory signature format migration
+#### ✅ Codec inventory signature format migration
 
-The codec inventory currently uses the original single-direction signature
-format. It needs to be migrated to the new bidirectional format with explicit
-`encode` and `decode` blocks. This is a mechanical transformation for symmetric
-codecs (duplicate the single signature into both blocks) but requires careful
-review for asymmetric codecs (`plain-dictionary`, `parquet-page-v2-split`,
-`arrow-ipc-buffer`, `orc-string-direct`, `orc-string-dictionary`).
+All codec inventory entries have been migrated to the bidirectional format with
+explicit `encode` and `decode` blocks, including asymmetric codecs
+(`plain-dictionary`, `parquet-page-v2-split`, `arrow-ipc-buffer`,
+`orc-string-direct`, `orc-string-dictionary`).
 
 ### Forward-Looking
 
@@ -286,6 +303,6 @@ That said, a high-level roadmap likely looks like the following:
 - **Solidify codec URIs and spec requirements**: ideally codec specs describe
   the behavior of codec implementations in a way that allows specs to be used
   as test drivers to ensure implementation correctness
-- **Design and implement ative codec plugin system**
+- **Design and implement native codec plugin system**
 - **Format driver integration example**: show how one or more format drivers
   can leverage Cylf for data codecs

@@ -16,6 +16,10 @@
       "level": {
         "type": "int",
         "default": 3
+      },
+      "dictionary": {
+        "type": "bytes",
+        "required": false
       }
     },
     "outputs": {
@@ -28,6 +32,10 @@
     "inputs": {
       "bytes": {
         "type": "bytes"
+      },
+      "dictionary": {
+        "type": "bytes",
+        "required": false
       }
     },
     "outputs": {

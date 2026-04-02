@@ -25,6 +25,21 @@ engine matches step outputs to downstream step inputs by name. Codec parameters
 (non-bytes inputs like compression level or element size) arrive as named port
 entries serialized as UTF-8 JSON bytes.
 
+### Error representation
+
+The current backend interfaces signal errors in limited ways: the Component
+Model WIT interface returns `result<port-map, string>`, Core Wasm returns `0`
+from `encode`/`decode`, and native codecs return `NULL`. These mechanisms,
+while they can all indicate a failure occurred, are not aligned to a unified
+interface. Moreover, not all feature the ability to pass structured error
+information through to the caller.
+
+A richer error model is needed, one where the result of a codec or pipeline
+invocation functions as a result monad, carrying either output data or
+structured error information through the port-map mechanism uniformly across
+backends. How this is modeled is an open design question tracked in [Open
+Questions](../06_future.md).
+
 ### Signature
 
 Every codec must carry a signature: a JSON object declaring the codec's

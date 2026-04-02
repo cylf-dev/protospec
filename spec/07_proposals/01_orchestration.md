@@ -3,7 +3,7 @@
 > [!NOTE]
 > This is a draft document written by an LLM. It serves to document a
 > human-generated idea, and as a platform for iteration and ideation. Do not
-> expect it to all be correct or the assertations to be fully vetted.
+> expect it to all be correct or the assertions to be fully vetted.
 
 ## Abstract
 
@@ -880,6 +880,8 @@ modules may use whatever async primitives the Component Model supports; precise
 support for this tier is not yet specified and should be treated as a runtime
 capability that may or may not be available.
 
+### Format Driver Module Interface
+
 A format driver module implements operations for both the planning phase and
 the execution phase.
 
@@ -1240,18 +1242,18 @@ invokes it from a single codec node.
         "element_size": { "type": "uint", "value": 4 }
       },
       "outputs": {
-        "bytes": "unshuffle.bytes"
+        "bytes": "steps.unshuffle.bytes"
       },
       "steps": {
         "decompress": {
           "codec_id": "zstd",
-          "inputs": { "bytes": "input.bytes" }
+          "inputs": { "bytes": "inputs.bytes" }
         },
         "unshuffle": {
           "codec_id": "shuffle",
           "inputs": {
-            "bytes": "decompress.bytes",
-            "element_size": "constant.element_size"
+            "bytes": "steps.decompress.bytes",
+            "element_size": "constants.element_size"
           }
         }
       }
@@ -1341,50 +1343,50 @@ pipeline is defined in the codec inventory, the format driver references it by
         "rep_bit_width": { "type": "uint", "value": 1 }
       },
       "outputs": {
-        "values": "dict_lookup.bytes",
-        "def_levels": "decode_def.bytes",
-        "rep_levels": "decode_rep.bytes"
+        "values": "steps.dict_lookup.bytes",
+        "def_levels": "steps.decode_def.bytes",
+        "rep_levels": "steps.decode_rep.bytes"
       },
       "steps": {
         "decompress": {
           "codec_id": "zstd",
-          "inputs": { "bytes": "input.data_page" }
+          "inputs": { "bytes": "inputs.data_page" }
         },
         "split": {
           "codec_id": "parquet-page-v2-split",
           "inputs": {
-            "bytes": "decompress.bytes",
-            "rep_length": "input.rep_length",
-            "def_length": "input.def_length"
+            "bytes": "steps.decompress.bytes",
+            "rep_length": "inputs.rep_length",
+            "def_length": "inputs.def_length"
           }
         },
         "decode_indices": {
           "codec_id": "rle-parquet",
           "inputs": {
-            "bytes": "split.value_bytes",
-            "bit_width": "input.index_bit_width"
+            "bytes": "steps.split.value_bytes",
+            "bit_width": "inputs.index_bit_width"
           }
         },
         "dict_lookup": {
           "codec_id": "plain-dictionary",
           "inputs": {
-            "indices": "decode_indices.bytes",
-            "dictionary": "input.dict_page",
-            "physical_type": "input.physical_type"
+            "indices": "steps.decode_indices.bytes",
+            "dictionary": "inputs.dict_page",
+            "physical_type": "inputs.physical_type"
           }
         },
         "decode_def": {
           "codec_id": "rle-parquet",
           "inputs": {
-            "bytes": "split.def_bytes",
-            "bit_width": "constant.def_bit_width"
+            "bytes": "steps.split.def_bytes",
+            "bit_width": "constants.def_bit_width"
           }
         },
         "decode_rep": {
           "codec_id": "rle-parquet",
           "inputs": {
-            "bytes": "split.rep_bytes",
-            "bit_width": "constant.rep_bit_width"
+            "bytes": "steps.split.rep_bytes",
+            "bit_width": "constants.rep_bit_width"
           }
         }
       }
@@ -1531,21 +1533,21 @@ to encode and write data pages.
         "level": { "type": "int", "value": 3 }
       },
       "outputs": {
-        "bytes": "compress.bytes"
+        "bytes": "steps.compress.bytes"
       },
       "steps": {
         "rle_encode": {
           "codec_id": "rle-parquet",
           "inputs": {
-            "bytes": "input.indices",
-            "bit_width": "input.index_bit_width"
+            "bytes": "inputs.indices",
+            "bit_width": "inputs.index_bit_width"
           }
         },
         "compress": {
           "codec_id": "zstd",
           "inputs": {
-            "bytes": "rle_encode.bytes",
-            "level": "constant.level"
+            "bytes": "steps.rle_encode.bytes",
+            "level": "constants.level"
           },
           "encode_only_inputs": ["level"]
         }
@@ -1794,18 +1796,18 @@ with per-chunk input bindings.
         "element_size": { "type": "uint", "value": 4 }
       },
       "outputs": {
-        "bytes": "unshuffle.bytes"
+        "bytes": "steps.unshuffle.bytes"
       },
       "steps": {
         "decompress": {
           "codec_id": "zstd",
-          "inputs": { "bytes": "input.bytes" }
+          "inputs": { "bytes": "inputs.bytes" }
         },
         "unshuffle": {
           "codec_id": "shuffle",
           "inputs": {
-            "bytes": "decompress.bytes",
-            "element_size": "constant.element_size"
+            "bytes": "steps.decompress.bytes",
+            "element_size": "constants.element_size"
           }
         }
       }
@@ -1901,6 +1903,7 @@ Key observations:
 4. **Encode-path multi-pass coordination.** The interaction between scan nodes,
    driver callbacks, and the main encode pipeline — particularly how the
    orchestrator coordinates multi-pass operations where a preparation pass must
+   complete before the main pass begins — needs further design.
 5. **Plan composition.** Whether plans can reference other plans as sub-units
    (analogous to how codec pipelines can reference other pipelines) is
    deferred. The current design does not support plan nesting.

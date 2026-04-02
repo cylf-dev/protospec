@@ -294,6 +294,22 @@ We need to consider the above and reach a consensus as to whether constants
 carry their weight or should be replaced by inline values, or whether both
 forms should be supported.
 
+### Error handling and result semantics
+
+The pipeline model does not currently define how errors are represented or
+propagated. If a step fails during pipeline execution, the engine halts and the
+error must be communicated to the caller — but the mechanism for doing so is
+not yet specified.
+
+The result of pipeline execution should function as a result monad: the caller
+receives either the pipeline's output data or structured error information, and
+can dereference the result accordingly. This likely requires the output
+representation to carry error information (failing step, codec identity, error
+details) through ports alongside or instead of data ports, but the current flat
+port-map structure has no facility for this. Whether this is modeled as nesting
+within the port map, a wrapper around port maps, or some other structure is an
+open design question — see [Open Questions](../06_future.md).
+
 ### Conditional pipeline steps
 
 Some codecs require conditional logic within a pipeline. ORC's varint encoding

@@ -1,16 +1,16 @@
-# Distribution & Registry
+# Codec Distribution & Registry
 
 This document describes how codec artifacts are distributed: how they get from
 codec authors to the pipeline engine that executes them.
 
 > [!NOTE]
-> This document even more immature that others in this spec. Much of it needs
+> This document even more immature than others in this spec. Much of it needs
 > more consideration and is too tightly written towards the chonkle PoC
 > implementation decisions rather than the needs of a spec document.
 
 ## Wasm Codec Distribution
 
-## Distribution Model
+### Distribution Model
 
 Cylf takes a registry-first approach to codec distribution. Codec artifacts are
 published to registries and fetched on demand by the pipeline engine when a
@@ -22,7 +22,7 @@ precedence chain: locally available modules are preferred; remote fetch is a
 fallback. Downloaded artifacts are cached locally to avoid redundant network
 requests.
 
-### Supported URI schemes
+#### Supported URI schemes
 
 | Scheme | Description |
 |---|---|
@@ -32,7 +32,7 @@ requests.
 
 `http://` (unencrypted) should be rejected by conforming implementations.
 
-## Current Approach
+### Current Approach
 
 Codec repositories publish `.wasm` artifacts to both **GitHub Releases** (as
 release assets) and **GitHub Container Registry** (as OCI artifacts). This
@@ -50,7 +50,7 @@ packages. Consumers need an OCI client (e.g. `oras`) or an OCI client library.
 
 Publishing to both is handled by a single CI workflow on each tagged release.
 
-## Future: Wasm Component Registry (warg / wa.dev)
+### Future: Wasm Component Registry (warg / wa.dev)
 
 The Bytecode Alliance's [warg](https://warg.io/) registry protocol, with
 [wa.dev](https://wa.dev/) as the public instance, is purpose-built for Wasm
@@ -69,7 +69,7 @@ in [`wasm-pkg-tools`](https://github.com/bytecodealliance/wasm-pkg-tools)
 (`wkg` CLI). Core Wasm codecs are not Component Model components and would
 need separate distribution regardless of warg maturity.
 
-## Local Caching
+### Local Caching
 
 Downloaded `.wasm` artifacts are cached locally to avoid redundant network
 fetches. The cache is organized by codec identifier. Subsequent resolutions for
@@ -81,7 +81,7 @@ cache, loading a codec module is fast (~3ms measured). The download cache and
 compilation cache are orthogonal — the download cache stores portable `.wasm`
 binaries, the compilation cache stores platform-specific compiled output.
 
-## Integrity and Trust
+### Integrity and Trust
 
 Codec integrity can be verified at multiple levels:
 
@@ -96,7 +96,7 @@ Codec integrity can be verified at multiple levels:
 The specific signature verification scheme (key management, trust roots,
 signature format) is not yet specified and is an open design area.
 
-## Embedded Codecs
+### Embedded Codecs
 
 Cylf's resolution model is not limited to external registries. A codec URI
 could in principle reference a byte range within a data file itself — enabling

@@ -22,6 +22,8 @@ WebAssembly runtime for portability and extensibility.
   what it enables
 - [Architecture](02_architecture.md) — the components of the Cylf codec layer,
   how they relate, and where the boundaries lie
+- [Glossary](00_glossary.md) — quick reference for terms used throughout the
+  specification
 
 ### Codec specifications
 
@@ -78,7 +80,7 @@ core spec.
 
 ## Implementations
 
-Currenlly only one implementation exists:
+Currently only one implementation exists:
 [chonkle](https://github.com/cylf-dev/chonkle). This is a proof-of-concept
 Python host for the codec pipeline engine. It is the first research
 implementation intended to inform the spec and future development, not as the

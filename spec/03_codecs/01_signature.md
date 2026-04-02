@@ -212,6 +212,38 @@ length fields.
 Examples: `transpose`, `tiff-predictor-2`, `tiff-predictor-3`, `png-filter`,
 `parquet-page-v2-split`, `arrow-ipc-buffer`
 
+### Awareness classification caveats
+
+The awareness levels above are useful for understanding how to think about and
+classify codec operations, but reality is more nuanced than a single
+classification per codec can capture. Two situations are worth noting:
+
+**Direction-dependent awareness.** Because each direction has its own signature
+with its own required inputs, a codec's effective awareness can differ between
+encode and decode. A self-describing codec like `blosc` requires no
+data-descriptive parameters on decode (the header embedded in the chunk carries
+everything), but its encode signature accepts parameters that reference element
+structure. When awareness differs by direction, the classification in the
+[Codec Inventory](03_inventory.md) reflects the *maximum* across both
+directions; if either direction requires data-descriptive parameters at a
+given level, the codec is classified at that level.
+
+**Optional higher-level awareness.** Some codecs accept data-descriptive
+parameters that are optional (they have defaults or are marked
+`"required": false`). Such a codec *can* operate at a higher awareness level
+when those parameters are supplied, but does not *require* it. Blosc's encode
+signature, for example, accepts `shuffle` and `blocksize` with defaults. Thus,
+it can operate as pure-bytes (ignoring element structure) or as stride-aware
+(when the caller supplies element-informed values). When awareness depends on
+optional parameters, the inventory classification reflects the *minimum
+required* awareness, i.e., the level at which the codec operates when only
+required parameters are supplied.
+
+These caveats mean that inventory classifications are best understood as a
+practical tool for developers and users to reason about codec behavior, not as
+a precise formal property. The per-direction signature remains the
+authoritative source for what parameters a codec requires or accepts.
+
 ### Implications for pipeline construction
 
 The awareness classification, which is implicitly encoded into a codec's
