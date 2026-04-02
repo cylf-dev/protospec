@@ -1,10 +1,10 @@
-# Open Questions & Roadmap
+# Open Questions, Known Gaps & Roadmap
 
-This document consolidates unresolved design questions and planned work across
-the Cylf ecosystem. Items are grouped by area. Items marked ✅ have been
-resolved and are retained for context.
+This document consolidates unresolved design questions, known areas needing
+further work, and planned work across the Cylf ecosystem. Items are grouped by
+area. Items marked ✅ have been resolved and are retained for context.
 
-## Open Questions
+## Open Questions & Known Gaps
 
 ### Codec Signature Model
 
@@ -189,6 +189,13 @@ proof-of-concept implementation has a working precedence chain that can inform
 the spec, but the spec-level resolution order may differ.
 
 ### Distribution
+
+#### Distribution document maturity
+
+The [Distribution & Registry](04_runtime/02_distribution.md) document needs
+further iteration and refinement. Much of its current content is written toward
+the chonkle PoC implementation decisions rather than the needs of a spec
+document, and requires reworking to be spec-appropriate.
 
 #### Signature verification scheme
 

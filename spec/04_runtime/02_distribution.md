@@ -1,9 +1,12 @@
 # Distribution & Registry
 
-This document describes how codec artifacts are distributed — how they get from
+This document describes how codec artifacts are distributed: how they get from
 codec authors to the pipeline engine that executes them.
 
----
+> [!NOTE]
+> This document even more immature that others in this spec. Much of it needs
+> more consideration and is too tightly written towards the chonkle PoC
+> implementation decisions rather than the needs of a spec document.
 
 ## Wasm Codec Distribution
 
@@ -29,8 +32,6 @@ requests.
 
 `http://` (unencrypted) should be rejected by conforming implementations.
 
----
-
 ## Current Approach
 
 Codec repositories publish `.wasm` artifacts to both **GitHub Releases** (as
@@ -48,8 +49,6 @@ Wasm ecosystem is heading. Supports rich metadata via OCI manifests
 packages. Consumers need an OCI client (e.g. `oras`) or an OCI client library.
 
 Publishing to both is handled by a single CI workflow on each tagged release.
-
----
 
 ## Future: Wasm Component Registry (warg / wa.dev)
 
@@ -70,8 +69,6 @@ in [`wasm-pkg-tools`](https://github.com/bytecodealliance/wasm-pkg-tools)
 (`wkg` CLI). Core Wasm codecs are not Component Model components and would
 need separate distribution regardless of warg maturity.
 
----
-
 ## Local Caching
 
 Downloaded `.wasm` artifacts are cached locally to avoid redundant network
@@ -83,8 +80,6 @@ native machine code derived from `.wasm` binaries. With a warm compilation
 cache, loading a codec module is fast (~3ms measured). The download cache and
 compilation cache are orthogonal — the download cache stores portable `.wasm`
 binaries, the compilation cache stores platform-specific compiled output.
-
----
 
 ## Integrity and Trust
 
@@ -101,8 +96,6 @@ Codec integrity can be verified at multiple levels:
 The specific signature verification scheme (key management, trust roots,
 signature format) is not yet specified and is an open design area.
 
----
-
 ## Embedded Codecs
 
 Cylf's resolution model is not limited to external registries. A codec URI
@@ -115,8 +108,6 @@ The exact mechanism for embedded codec references (URI format, byte-range
 specification, interaction with caching) is an open design area. See
 [Comparison with F3](../05_design/03_f3_comparison.md) for discussion of the trade-offs
 between registry-first and embedded-first distribution.
-
----
 
 ## Native Codec Distribution
 
@@ -145,8 +136,6 @@ or some combination — is an open design area. The resolution mechanism would
 need to handle multiple installed implementations for the same `codec_id`,
 including selection by preference, capability, or explicit override.
 
----
-
 ## Options Considered and Rejected
 
 ### Language-specific package registries (npm, PyPI, Maven)
@@ -157,8 +146,6 @@ would require wrapping them in a language-specific package format (e.g. an npm
 package containing a `.wasm` file). This adds unnecessary packaging overhead
 and complexity, and requires consumers to install language-specific tooling.
 Not applicable.
-
----
 
 ## Summary
 
